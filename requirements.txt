@@ -1,0 +1,90 @@
+# Agentic Framework Dependencies
+
+# Core Python packages
+asyncio-mqtt>=0.13.0
+aiofiles>=23.2.1
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+
+# Web framework and API
+fastapi>=0.104.1
+uvicorn[standard]>=0.24.0
+websockets>=12.0
+
+# Database and storage
+sqlalchemy>=2.0.23
+alembic>=1.13.1
+redis>=5.0.1
+aioredis>=2.0.1
+
+# HTTP client for API calls
+httpx>=0.25.2
+aiohttp>=3.9.1
+
+# Data processing and analysis
+pandas>=2.1.4
+numpy>=1.25.2
+openpyxl>=3.1.2
+xlrd>=2.0.1
+
+# Configuration and environment
+python-dotenv>=1.0.0
+pyyaml>=6.0.1
+toml>=0.10.2
+
+# Logging and monitoring
+structlog>=23.2.0
+prometheus-client>=0.19.0
+
+# Security and authentication
+cryptography>=41.0.8
+passlib[bcrypt]>=1.7.4
+python-jose[cryptography]>=3.3.0
+
+# Email and messaging
+aiosmtplib>=3.0.1
+jinja2>=3.1.2
+
+# Calendar and scheduling
+icalendar>=5.0.7
+python-dateutil>=2.8.2
+
+# Weather and external APIs
+requests>=2.31.0
+beautifulsoup4>=4.12.2
+feedparser>=6.0.10
+
+# Translation and NLP
+googletrans>=4.0.0rc1
+nltk>=3.8.1
+spacy>=3.7.2
+
+# Testing
+pytest>=7.4.3
+pytest-asyncio>=0.21.1
+pytest-cov>=4.1.0
+httpx>=0.25.2
+
+# Development tools
+black>=23.11.0
+isort>=5.12.0
+flake8>=6.1.0
+mypy>=1.7.1
+
+# Documentation
+mkdocs>=1.5.3
+mkdocs-material>=9.4.8
+
+# Docker and deployment
+docker>=6.1.3
+
+# Optional: AI and ML libraries (for advanced features)
+# openai>=1.3.7
+# transformers>=4.36.0
+# torch>=2.1.1
+# scikit-learn>=1.3.2
+
+# Optional: Additional data sources
+# psycopg2-binary>=2.9.9  # PostgreSQL
+# pymongo>=4.6.0  # MongoDB
+# elasticsearch>=8.11.0  # Elasticsearch
