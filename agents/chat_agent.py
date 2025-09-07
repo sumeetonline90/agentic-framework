@@ -183,13 +183,14 @@ class ChatAgent(BaseAgent):
             self._update_user_session(session_id, user_id, intent)
             
             # Store context for future reference
-            self.context_manager.set(
-                f"last_intent_{session_id}",
-                intent,
-                ContextScope.SESSION,
-                owner=session_id,
-                ttl=3600  # 1 hour
-            )
+            if self.context_manager:
+                self.context_manager.set(
+                    f"last_intent_{session_id}",
+                    intent,
+                    ContextScope.SESSION,
+                    owner=session_id,
+                    ttl=3600  # 1 hour
+                )
             
             return {
                 "success": True,
@@ -377,43 +378,18 @@ class ChatAgent(BaseAgent):
         if self.message_bus:
             await self.message_bus.subscribe_to_broadcasts(self.agent_id)
     
-    async def _process_message_impl(self, message: Message) -> Dict[str, Any]:
-        """Implementation of message processing for chat agent."""
-        try:
-            action = message.data.get("action")
-            
-            if action == "chat":
-                return await self._handle_chat(message.data)
-            elif action == "get_history":
-                return await self._get_conversation_history(message.data)
-            elif action == "clear_history":
-                return await self._clear_conversation(message.data)
-            elif action == "get_capabilities":
-                return await self._get_capabilities()
-            else:
-                return {
-                    "success": False,
-                    "error": f"Unknown action: {action}"
-                }
-                
-        except Exception as e:
-            self.logger.error(f"Error in _process_message_impl: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
-
     async def _on_stop(self):
         """Called when agent stops"""
         self.logger.info(f"Chat agent {self.agent_id} stopped")
         
         # Save conversation history to context for persistence
-        for session_id, history in self.conversation_history.items():
-            self.context_manager.set(
-                f"conversation_history_{session_id}",
-                history,
-                ContextScope.SESSION,
-                owner=session_id,
-                ttl=86400  # 24 hours
-            )
+        if self.context_manager:
+            for session_id, history in self.conversation_history.items():
+                self.context_manager.set(
+                    f"conversation_history_{session_id}",
+                    history,
+                    ContextScope.SESSION,
+                    owner=session_id,
+                    ttl=86400  # 24 hours
+                )
 

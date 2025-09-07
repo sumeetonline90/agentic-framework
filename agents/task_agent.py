@@ -82,17 +82,17 @@ class TaskAgent(BaseAgent):
     async def process_message(self, message: Message) -> Optional[Message]:
         """Process incoming messages for task management."""
         try:
-            if message.content.get("action") == "create_task":
+            if message.data.get("action") == "create_task":
                 return await self._handle_create_task(message)
-            elif message.content.get("action") == "update_task":
+            elif message.data.get("action") == "update_task":
                 return await self._handle_update_task(message)
-            elif message.content.get("action") == "delete_task":
+            elif message.data.get("action") == "delete_task":
                 return await self._handle_delete_task(message)
-            elif message.content.get("action") == "list_tasks":
+            elif message.data.get("action") == "list_tasks":
                 return await self._handle_list_tasks(message)
-            elif message.content.get("action") == "schedule_task":
+            elif message.data.get("action") == "schedule_task":
                 return await self._handle_schedule_task(message)
-            elif message.content.get("action") == "create_workflow":
+            elif message.data.get("action") == "create_workflow":
                 return await self._handle_create_workflow(message)
             else:
                 return await super().process_message(message)
@@ -107,7 +107,7 @@ class TaskAgent(BaseAgent):
     
     async def _handle_create_task(self, message: Message) -> Message:
         """Handle task creation request."""
-        task_data = message.content.get("task_data", {})
+        task_data = message.data.get("task_data", {})
         task = Task(
             task_id=task_data.get("task_id", f"task_{len(self.tasks) + 1}"),
             title=task_data.get("title", "Untitled Task"),
@@ -134,8 +134,8 @@ class TaskAgent(BaseAgent):
     
     async def _handle_update_task(self, message: Message) -> Message:
         """Handle task update request."""
-        task_id = message.content.get("task_id")
-        updates = message.content.get("updates", {})
+        task_id = message.data.get("task_id")
+        updates = message.data.get("updates", {})
         
         if task_id not in self.tasks:
             return Message(
@@ -178,7 +178,7 @@ class TaskAgent(BaseAgent):
     
     async def _handle_delete_task(self, message: Message) -> Message:
         """Handle task deletion request."""
-        task_id = message.content.get("task_id")
+        task_id = message.data.get("task_id")
         
         if task_id not in self.tasks:
             return Message(
@@ -206,7 +206,7 @@ class TaskAgent(BaseAgent):
     
     async def _handle_list_tasks(self, message: Message) -> Message:
         """Handle task listing request."""
-        filters = message.content.get("filters", {})
+        filters = message.data.get("filters", {})
         tasks = self._filter_tasks(filters)
         
         return Message(
@@ -221,8 +221,8 @@ class TaskAgent(BaseAgent):
     
     async def _handle_schedule_task(self, message: Message) -> Message:
         """Handle task scheduling request."""
-        task_id = message.content.get("task_id")
-        schedule_time = message.content.get("schedule_time")
+        task_id = message.data.get("task_id")
+        schedule_time = message.data.get("schedule_time")
         
         if task_id not in self.tasks:
             return Message(
@@ -279,7 +279,7 @@ class TaskAgent(BaseAgent):
     
     async def _handle_create_workflow(self, message: Message) -> Message:
         """Handle workflow creation request."""
-        workflow_data = message.content.get("workflow_data", {})
+        workflow_data = message.data.get("workflow_data", {})
         workflow_id = workflow_data.get("workflow_id", f"workflow_{len(self.workflows) + 1}")
         
         workflow = {
@@ -342,7 +342,7 @@ class TaskAgent(BaseAgent):
     
     async def _monitor_scheduled_tasks(self):
         """Monitor and clean up completed scheduled tasks."""
-        while self.status.is_running():
+        while self.status == AgentStatus.RUNNING:
             try:
                 # Clean up completed tasks
                 completed_tasks = [
@@ -403,7 +403,7 @@ class TaskAgent(BaseAgent):
     async def _process_message_impl(self, message: Message) -> Dict[str, Any]:
         """Implementation of message processing for task agent."""
         try:
-            action = message.content.get("action")
+            action = message.data.get("action")
             
             if action == "create_task":
                 return await self._handle_create_task(message)

@@ -91,19 +91,19 @@ class DataAgent(BaseAgent):
     async def process_message(self, message: Message) -> Optional[Message]:
         """Process incoming messages for data operations."""
         try:
-            if message.content.get("action") == "read_data":
+            if message.data.get("action") == "read_data":
                 return await self._handle_read_data(message)
-            elif message.content.get("action") == "write_data":
+            elif message.data.get("action") == "write_data":
                 return await self._handle_write_data(message)
-            elif message.content.get("action") == "analyze_data":
+            elif message.data.get("action") == "analyze_data":
                 return await self._handle_analyze_data(message)
-            elif message.content.get("action") == "transform_data":
+            elif message.data.get("action") == "transform_data":
                 return await self._handle_transform_data(message)
-            elif message.content.get("action") == "query_data":
+            elif message.data.get("action") == "query_data":
                 return await self._handle_query_data(message)
-            elif message.content.get("action") == "add_source":
+            elif message.data.get("action") == "add_source":
                 return await self._handle_add_source(message)
-            elif message.content.get("action") == "validate_data":
+            elif message.data.get("action") == "validate_data":
                 return await self._handle_validate_data(message)
             else:
                 return await super().process_message(message)
@@ -118,8 +118,8 @@ class DataAgent(BaseAgent):
     
     async def _handle_read_data(self, message: Message) -> Message:
         """Handle data reading request."""
-        source_id = message.content.get("source_id")
-        query_params = message.content.get("query_params", {})
+        source_id = message.data.get("source_id")
+        query_params = message.data.get("query_params", {})
         
         if source_id not in self.data_sources:
             return Message(
@@ -150,9 +150,9 @@ class DataAgent(BaseAgent):
     
     async def _handle_write_data(self, message: Message) -> Message:
         """Handle data writing request."""
-        source_id = message.content.get("source_id")
-        data = message.content.get("data")
-        operation = message.content.get("operation", "write")
+        source_id = message.data.get("source_id")
+        data = message.data.get("data")
+        operation = message.data.get("operation", "write")
         
         if source_id not in self.data_sources:
             return Message(
@@ -183,9 +183,9 @@ class DataAgent(BaseAgent):
     
     async def _handle_analyze_data(self, message: Message) -> Message:
         """Handle data analysis request."""
-        source_id = message.content.get("source_id")
-        analysis_type = message.content.get("analysis_type", "basic")
-        parameters = message.content.get("parameters", {})
+        source_id = message.data.get("source_id")
+        analysis_type = message.data.get("analysis_type", "basic")
+        parameters = message.data.get("parameters", {})
         
         if source_id not in self.data_sources:
             return Message(
@@ -220,9 +220,9 @@ class DataAgent(BaseAgent):
     
     async def _handle_transform_data(self, message: Message) -> Message:
         """Handle data transformation request."""
-        source_id = message.content.get("source_id")
-        transformation = message.content.get("transformation", {})
-        target_format = message.content.get("target_format")
+        source_id = message.data.get("source_id")
+        transformation = message.data.get("transformation", {})
+        target_format = message.data.get("target_format")
         
         if source_id not in self.data_sources:
             return Message(
@@ -257,9 +257,9 @@ class DataAgent(BaseAgent):
     
     async def _handle_query_data(self, message: Message) -> Message:
         """Handle data query request."""
-        source_id = message.content.get("source_id")
-        query = message.content.get("query")
-        parameters = message.content.get("parameters", {})
+        source_id = message.data.get("source_id")
+        query = message.data.get("query")
+        parameters = message.data.get("parameters", {})
         
         if source_id not in self.data_sources:
             return Message(
@@ -301,7 +301,7 @@ class DataAgent(BaseAgent):
     
     async def _handle_add_source(self, message: Message) -> Message:
         """Handle data source addition request."""
-        source_data = message.content.get("source_data", {})
+        source_data = message.data.get("source_data", {})
         
         source = DataSource(
             source_id=source_data.get("source_id", f"source_{len(self.data_sources) + 1}"),
@@ -335,8 +335,8 @@ class DataAgent(BaseAgent):
     
     async def _handle_validate_data(self, message: Message) -> Message:
         """Handle data validation request."""
-        source_id = message.content.get("source_id")
-        validation_rules = message.content.get("validation_rules", {})
+        source_id = message.data.get("source_id")
+        validation_rules = message.data.get("validation_rules", {})
         
         if source_id not in self.data_sources:
             return Message(
@@ -693,7 +693,7 @@ class DataAgent(BaseAgent):
     async def _process_message_impl(self, message: Message) -> Dict[str, Any]:
         """Implementation of message processing for data agent."""
         try:
-            action = message.content.get("action")
+            action = message.data.get("action")
             
             if action == "read_data":
                 return await self._handle_read_data(message)

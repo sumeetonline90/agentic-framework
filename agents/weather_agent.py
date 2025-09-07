@@ -6,6 +6,7 @@ Handles weather data retrieval and forecasting.
 
 import asyncio
 import logging
+import uuid
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
@@ -13,6 +14,7 @@ from enum import Enum
 
 from core.base_agent import BaseAgent
 from core.message_bus import Message
+from core.context_manager import ContextScope
 from config.agent_config import AgentType
 
 
@@ -70,7 +72,8 @@ class WeatherAgent(BaseAgent):
         if await super().start():
             self.logger.info("Weather agent started successfully")
             # Load API key from context
-            self.api_key = await self.context_manager.get("weather_api_key", scope="global")
+            if self.context_manager:
+                self.api_key = self.context_manager.get("weather_api_key", scope=ContextScope.GLOBAL)
             # Initialize default locations
             await self._initialize_default_locations()
             return True
@@ -86,76 +89,95 @@ class WeatherAgent(BaseAgent):
     async def process_message(self, message: Message) -> Optional[Message]:
         """Process incoming messages for weather operations."""
         try:
-            if message.content.get("action") == "get_current_weather":
+            if message.data.get("action") == "get_current_weather":
                 return await self._handle_get_current_weather(message)
-            elif message.content.get("action") == "get_forecast":
+            elif message.data.get("action") == "get_forecast":
                 return await self._handle_get_forecast(message)
-            elif message.content.get("action") == "add_location":
+            elif message.data.get("action") == "add_location":
                 return await self._handle_add_location(message)
-            elif message.content.get("action") == "get_weather_alerts":
+            elif message.data.get("action") == "get_weather_alerts":
                 return await self._handle_get_weather_alerts(message)
-            elif message.content.get("action") == "get_weather_history":
+            elif message.data.get("action") == "get_weather_history":
                 return await self._handle_get_weather_history(message)
             else:
                 return await super().process_message(message)
         except Exception as e:
             self.logger.error(f"Error processing message: {e}")
             return Message(
+                id=str(uuid.uuid4()),
                 sender=self.agent_id,
                 recipient=message.sender,
-                content={"error": str(e)},
+                type="weather_response",
+                data={"error": str(e)},
                 priority=message.priority
             )
     
     async def _handle_get_current_weather(self, message: Message) -> Message:
         """Handle current weather request."""
-        location_id = message.content.get("location_id")
+        location_id = message.data.get("location_id")
+        send_to_email = message.data.get("send_to_email", False)
         
         if location_id not in self.locations:
             return Message(
+                id=str(uuid.uuid4()),
                 sender=self.agent_id,
                 recipient=message.sender,
-                content={"error": f"Location {location_id} not found"}
+                type="weather_response",
+                data={"error": f"Location {location_id} not found"}
             )
         
         try:
             weather_data = await self._get_current_weather(location_id)
+            weather_dict = self._weather_to_dict(weather_data)
+            
+            # If requested, send weather data to email agent
+            if send_to_email:
+                await self._send_weather_to_email_agent(weather_dict, message.data)
             
             return Message(
+                id=str(uuid.uuid4()),
                 sender=self.agent_id,
                 recipient=message.sender,
-                content={
+                type="weather_response",
+                data={
                     "action": "current_weather",
                     "location_id": location_id,
-                    "weather": self._weather_to_dict(weather_data)
+                    "weather": weather_dict,
+                    "sent_to_email": send_to_email
                 }
             )
         except Exception as e:
             return Message(
+                id=str(uuid.uuid4()),
                 sender=self.agent_id,
                 recipient=message.sender,
-                content={"error": f"Error getting weather: {str(e)}"}
+                type="weather_response",
+                data={"error": f"Error getting weather: {str(e)}"}
             )
     
     async def _handle_get_forecast(self, message: Message) -> Message:
         """Handle weather forecast request."""
-        location_id = message.content.get("location_id")
-        days = message.content.get("days", 5)
+        location_id = message.data.get("location_id")
+        days = message.data.get("days", 5)
         
         if location_id not in self.locations:
             return Message(
+                id=str(uuid.uuid4()),
                 sender=self.agent_id,
                 recipient=message.sender,
-                content={"error": f"Location {location_id} not found"}
+                type="weather_response",
+                data={"error": f"Location {location_id} not found"}
             )
         
         try:
             forecast = await self._get_weather_forecast(location_id, days)
             
             return Message(
+                id=str(uuid.uuid4()),
                 sender=self.agent_id,
                 recipient=message.sender,
-                content={
+                type="weather_response",
+                data={
                     "action": "weather_forecast",
                     "location_id": location_id,
                     "forecast": forecast,
@@ -164,14 +186,16 @@ class WeatherAgent(BaseAgent):
             )
         except Exception as e:
             return Message(
+                id=str(uuid.uuid4()),
                 sender=self.agent_id,
                 recipient=message.sender,
-                content={"error": f"Error getting forecast: {str(e)}"}
+                type="weather_response",
+                data={"error": f"Error getting forecast: {str(e)}"}
             )
     
     async def _handle_add_location(self, message: Message) -> Message:
         """Handle location addition request."""
-        location_data = message.content.get("location_data", {})
+        location_data = message.data.get("location_data", {})
         
         location = Location(
             location_id=location_data.get("location_id", f"location_{len(self.locations) + 1}"),
@@ -186,9 +210,11 @@ class WeatherAgent(BaseAgent):
         self.logger.info(f"Added location: {location.location_id} - {location.name}")
         
         return Message(
+            id=str(uuid.uuid4()),
             sender=self.agent_id,
             recipient=message.sender,
-            content={
+            type="weather_response",
+            data={
                 "action": "location_added",
                 "location_id": location.location_id,
                 "location": {
@@ -205,22 +231,26 @@ class WeatherAgent(BaseAgent):
     
     async def _handle_get_weather_alerts(self, message: Message) -> Message:
         """Handle weather alerts request."""
-        location_id = message.content.get("location_id")
+        location_id = message.data.get("location_id")
         
         if location_id not in self.locations:
             return Message(
+                id=str(uuid.uuid4()),
                 sender=self.agent_id,
                 recipient=message.sender,
-                content={"error": f"Location {location_id} not found"}
+                type="weather_response",
+                data={"error": f"Location {location_id} not found"}
             )
         
         try:
             alerts = await self._get_weather_alerts(location_id)
             
             return Message(
+                id=str(uuid.uuid4()),
                 sender=self.agent_id,
                 recipient=message.sender,
-                content={
+                type="weather_response",
+                data={
                     "action": "weather_alerts",
                     "location_id": location_id,
                     "alerts": alerts
@@ -228,30 +258,36 @@ class WeatherAgent(BaseAgent):
             )
         except Exception as e:
             return Message(
+                id=str(uuid.uuid4()),
                 sender=self.agent_id,
                 recipient=message.sender,
-                content={"error": f"Error getting alerts: {str(e)}"}
+                type="weather_response",
+                data={"error": f"Error getting alerts: {str(e)}"}
             )
     
     async def _handle_get_weather_history(self, message: Message) -> Message:
         """Handle weather history request."""
-        location_id = message.content.get("location_id")
-        days_back = message.content.get("days_back", 7)
+        location_id = message.data.get("location_id")
+        days_back = message.data.get("days_back", 7)
         
         if location_id not in self.locations:
             return Message(
+                id=str(uuid.uuid4()),
                 sender=self.agent_id,
                 recipient=message.sender,
-                content={"error": f"Location {location_id} not found"}
+                type="weather_response",
+                data={"error": f"Location {location_id} not found"}
             )
         
         try:
             history = await self._get_weather_history(location_id, days_back)
             
             return Message(
+                id=str(uuid.uuid4()),
                 sender=self.agent_id,
                 recipient=message.sender,
-                content={
+                type="weather_response",
+                data={
                     "action": "weather_history",
                     "location_id": location_id,
                     "history": history,
@@ -260,9 +296,11 @@ class WeatherAgent(BaseAgent):
             )
         except Exception as e:
             return Message(
+                id=str(uuid.uuid4()),
                 sender=self.agent_id,
                 recipient=message.sender,
-                content={"error": f"Error getting history: {str(e)}"}
+                type="weather_response",
+                data={"error": f"Error getting history: {str(e)}"}
             )
     
     async def _initialize_default_locations(self):
@@ -415,6 +453,96 @@ class WeatherAgent(BaseAgent):
         
         return weather_data
     
+    async def _send_weather_to_email_agent(self, weather_data: Dict[str, Any], request_data: Dict[str, Any]):
+        """Send weather data directly to email agent."""
+        try:
+            self.logger.info("🌤️ Weather Agent sending data to Email Agent...")
+            
+            # Get forecast data as well
+            location_id = request_data.get("location_id")
+            forecast_data = await self._get_weather_forecast(location_id, 3)
+            
+            # Format email content
+            email_content = self._format_weather_email_content(weather_data, forecast_data)
+            
+            # Create email data
+            email_data = {
+                "sender": request_data.get("email_sender"),
+                "recipients": [request_data.get("email_recipient")],
+                "subject": f"🌤️ Weather Report for {weather_data['location']} - {datetime.now().strftime('%Y-%m-%d')}",
+                "body": email_content,
+                "priority": "normal"
+            }
+            
+            # Create message to send to email agent
+            email_message = Message(
+                id=str(uuid.uuid4()),
+                sender=self.agent_id,
+                recipient="email_agent",
+                type="email_request",
+                data={"action": "compose_and_send_weather_email", "email_data": email_data}
+            )
+            
+            # Send message to email agent via message bus
+            if self.message_bus:
+                success = await self.message_bus.send_message(email_message)
+                if success:
+                    self.logger.info("✅ Weather data sent to Email Agent via message bus")
+                else:
+                    self.logger.error("❌ Failed to send weather data to Email Agent")
+            else:
+                self.logger.error("❌ No message bus available to send data to Email Agent")
+                
+        except Exception as e:
+            self.logger.error(f"❌ Failed to send weather data to Email Agent: {e}")
+    
+    def _format_weather_email_content(self, weather_data: Dict[str, Any], forecast_data: List[Dict[str, Any]]) -> str:
+        """Format weather data into email content."""
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        email_content = f"""
+🌤️ WEATHER REPORT FOR {weather_data['location'].upper()}
+Generated on: {current_time}
+
+📍 CURRENT WEATHER:
+==================
+Location: {weather_data['location']}
+Temperature: {weather_data['temperature']}°C
+Condition: {weather_data['condition'].title()}
+Humidity: {weather_data['humidity']}%
+Wind Speed: {weather_data['wind_speed']} km/h
+Wind Direction: {weather_data['wind_direction']}
+Pressure: {weather_data['pressure']} hPa
+Visibility: {weather_data['visibility']} km
+
+📅 3-DAY FORECAST:
+==================
+"""
+        
+        for day in forecast_data:
+            email_content += f"""
+📅 {day['date']}
+   High: {day['high_temp']}°C | Low: {day['low_temp']}°C
+   Condition: {day['condition'].title()}
+   Humidity: {day['humidity']}%
+   Wind: {day['wind_speed']} km/h
+   Precipitation Chance: {day['precipitation_chance']}%
+   {'─' * 40}
+"""
+        
+        email_content += f"""
+
+🤖 This weather report was automatically generated by the Agentic Framework.
+🌤️ Weather data provided by Weather Agent
+📧 Email delivery handled by Email Agent
+🔄 Data sent via direct agent-to-agent communication
+
+Best regards,
+Agentic Framework Weather Bot 🌤️
+"""
+        
+        return email_content
+    
     def _weather_to_dict(self, weather: WeatherData) -> Dict[str, Any]:
         """Convert weather data to dictionary for serialization."""
         return {
@@ -433,7 +561,7 @@ class WeatherAgent(BaseAgent):
     async def _process_message_impl(self, message: Message) -> Dict[str, Any]:
         """Implementation of message processing for weather agent."""
         try:
-            action = message.content.get("action")
+            action = message.data.get("action")
             
             if action == "get_current_weather":
                 return await self._handle_get_current_weather(message)

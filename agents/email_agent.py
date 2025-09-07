@@ -7,6 +7,7 @@ Handles email composition, sending, and management operations.
 import asyncio
 import logging
 import smtplib
+import uuid
 from datetime import datetime
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
@@ -16,8 +17,9 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
 
-from core.base_agent import BaseAgent
+from core.base_agent import BaseAgent, AgentStatus
 from core.message_bus import Message
+from core.context_manager import ContextScope
 from config.agent_config import AgentType
 
 
@@ -81,7 +83,8 @@ class EmailAgent(BaseAgent):
         if await super().start():
             self.logger.info("Email agent started successfully")
             # Load SMTP configuration from context
-            self.smtp_config = await self.context_manager.get("smtp_config", scope="global") or {}
+            if self.context_manager:
+                self.smtp_config = self.context_manager.get("smtp_config", scope=ContextScope.GLOBAL) or {}
             # Start background task for monitoring scheduled emails
             asyncio.create_task(self._monitor_scheduled_emails())
             return True
@@ -102,32 +105,34 @@ class EmailAgent(BaseAgent):
     async def process_message(self, message: Message) -> Optional[Message]:
         """Process incoming messages for email management."""
         try:
-            if message.content.get("action") == "compose_email":
+            if message.data.get("action") == "compose_email":
                 return await self._handle_compose_email(message)
-            elif message.content.get("action") == "send_email":
+            elif message.data.get("action") == "send_email":
                 return await self._handle_send_email(message)
-            elif message.content.get("action") == "schedule_email":
+            elif message.data.get("action") == "schedule_email":
                 return await self._handle_schedule_email(message)
-            elif message.content.get("action") == "create_template":
+            elif message.data.get("action") == "create_template":
                 return await self._handle_create_template(message)
-            elif message.content.get("action") == "list_emails":
+            elif message.data.get("action") == "list_emails":
                 return await self._handle_list_emails(message)
-            elif message.content.get("action") == "delete_email":
+            elif message.data.get("action") == "delete_email":
                 return await self._handle_delete_email(message)
             else:
                 return await super().process_message(message)
         except Exception as e:
             self.logger.error(f"Error processing message: {e}")
             return Message(
+                id=str(uuid.uuid4()),
                 sender=self.agent_id,
                 recipient=message.sender,
-                content={"error": str(e)},
+                type="error_response",
+                data={"error": str(e)},
                 priority=message.priority
             )
     
     async def _handle_compose_email(self, message: Message) -> Message:
         """Handle email composition request."""
-        email_data = message.content.get("email_data", {})
+        email_data = message.data.get("email_data", {})
         
         # Check if using template
         template_id = email_data.get("template_id")
@@ -162,9 +167,11 @@ class EmailAgent(BaseAgent):
         self.logger.info(f"Composed email: {email.email_id} - {email.subject}")
         
         return Message(
+            id=str(uuid.uuid4()),
             sender=self.agent_id,
             recipient=message.sender,
-            content={
+            type="email_response",
+            data={
                 "action": "email_composed",
                 "email_id": email.email_id,
                 "email": self._email_to_dict(email)
@@ -173,13 +180,15 @@ class EmailAgent(BaseAgent):
     
     async def _handle_send_email(self, message: Message) -> Message:
         """Handle email sending request."""
-        email_id = message.content.get("email_id")
+        email_id = message.data.get("email_id")
         
         if email_id not in self.emails:
             return Message(
+                id=str(uuid.uuid4()),
                 sender=self.agent_id,
                 recipient=message.sender,
-                content={"error": f"Email {email_id} not found"}
+                type="email_response",
+                data={"error": f"Email {email_id} not found"}
             )
         
         email = self.emails[email_id]
@@ -192,9 +201,11 @@ class EmailAgent(BaseAgent):
                 self.logger.info(f"Sent email: {email_id}")
                 
                 return Message(
+                    id=str(uuid.uuid4()),
                     sender=self.agent_id,
                     recipient=message.sender,
-                    content={
+                    type="email_response",
+                    data={
                         "action": "email_sent",
                         "email_id": email_id,
                         "sent_at": email.sent_at.isoformat()
@@ -203,36 +214,44 @@ class EmailAgent(BaseAgent):
             else:
                 email.status = EmailStatus.FAILED
                 return Message(
+                    id=str(uuid.uuid4()),
                     sender=self.agent_id,
                     recipient=message.sender,
-                    content={"error": f"Failed to send email {email_id}"}
+                    type="email_response",
+                    data={"error": f"Failed to send email {email_id}"}
                 )
         except Exception as e:
             email.status = EmailStatus.FAILED
             self.logger.error(f"Error sending email {email_id}: {e}")
             return Message(
+                id=str(uuid.uuid4()),
                 sender=self.agent_id,
                 recipient=message.sender,
-                content={"error": f"Error sending email: {str(e)}"}
+                type="email_response",
+                data={"error": f"Error sending email: {str(e)}"}
             )
     
     async def _handle_schedule_email(self, message: Message) -> Message:
         """Handle email scheduling request."""
-        email_id = message.content.get("email_id")
-        schedule_time = message.content.get("schedule_time")
+        email_id = message.data.get("email_id")
+        schedule_time = message.data.get("schedule_time")
         
         if email_id not in self.emails:
             return Message(
+                id=str(uuid.uuid4()),
                 sender=self.agent_id,
                 recipient=message.sender,
-                content={"error": f"Email {email_id} not found"}
+                type="email_response",
+                data={"error": f"Email {email_id} not found"}
             )
         
         if not schedule_time:
             return Message(
+                id=str(uuid.uuid4()),
                 sender=self.agent_id,
                 recipient=message.sender,
-                content={"error": "Schedule time is required"}
+                type="email_response",
+                data={"error": "Schedule time is required"}
             )
         
         try:
@@ -244,9 +263,11 @@ class EmailAgent(BaseAgent):
             delay = (schedule_dt - datetime.now()).total_seconds()
             if delay <= 0:
                 return Message(
+                    id=str(uuid.uuid4()),
                     sender=self.agent_id,
                     recipient=message.sender,
-                    content={"error": "Schedule time must be in the future"}
+                    type="email_response",
+                    data={"error": "Schedule time must be in the future"}
                 )
             
             # Schedule the email
@@ -259,9 +280,11 @@ class EmailAgent(BaseAgent):
             self.logger.info(f"Scheduled email {email_id} for {schedule_dt}")
             
             return Message(
+                id=str(uuid.uuid4()),
                 sender=self.agent_id,
                 recipient=message.sender,
-                content={
+                type="email_response",
+                data={
                     "action": "email_scheduled",
                     "email_id": email_id,
                     "schedule_time": schedule_dt.isoformat()
@@ -270,14 +293,16 @@ class EmailAgent(BaseAgent):
             
         except Exception as e:
             return Message(
+                id=str(uuid.uuid4()),
                 sender=self.agent_id,
                 recipient=message.sender,
-                content={"error": f"Invalid schedule time: {e}"}
+                type="email_response",
+                data={"error": f"Invalid schedule time: {e}"}
             )
     
     async def _handle_create_template(self, message: Message) -> Message:
         """Handle email template creation request."""
-        template_data = message.content.get("template_data", {})
+        template_data = message.data.get("template_data", {})
         
         template = EmailTemplate(
             template_id=template_data.get("template_id", f"template_{len(self.templates) + 1}"),
@@ -309,7 +334,7 @@ class EmailAgent(BaseAgent):
     
     async def _handle_list_emails(self, message: Message) -> Message:
         """Handle email listing request."""
-        filters = message.content.get("filters", {})
+        filters = message.data.get("filters", {})
         emails = self._filter_emails(filters)
         
         return Message(
@@ -324,13 +349,15 @@ class EmailAgent(BaseAgent):
     
     async def _handle_delete_email(self, message: Message) -> Message:
         """Handle email deletion request."""
-        email_id = message.content.get("email_id")
+        email_id = message.data.get("email_id")
         
         if email_id not in self.emails:
             return Message(
+                id=str(uuid.uuid4()),
                 sender=self.agent_id,
                 recipient=message.sender,
-                content={"error": f"Email {email_id} not found"}
+                type="email_response",
+                data={"error": f"Email {email_id} not found"}
             )
         
         # Cancel scheduled email if exists
@@ -419,7 +446,7 @@ class EmailAgent(BaseAgent):
                     # Notify other agents about email sent
                     await self.message_bus.broadcast(Message(
                         sender=self.agent_id,
-                        content={
+                        data={
                             "action": "scheduled_email_sent",
                             "email_id": email_id,
                             "sent_at": email.sent_at.isoformat()
@@ -438,7 +465,7 @@ class EmailAgent(BaseAgent):
     
     async def _monitor_scheduled_emails(self):
         """Monitor and clean up completed scheduled emails."""
-        while self.status.is_running():
+        while self.status == AgentStatus.RUNNING:
             try:
                 # Clean up completed tasks
                 completed_emails = [
@@ -500,12 +527,14 @@ class EmailAgent(BaseAgent):
     async def _process_message_impl(self, message: Message) -> Dict[str, Any]:
         """Implementation of message processing for email agent."""
         try:
-            action = message.content.get("action")
+            action = message.data.get("action")
             
             if action == "compose_email":
                 return await self._handle_compose_email(message)
             elif action == "send_email":
                 return await self._handle_send_email(message)
+            elif action == "compose_and_send_weather_email":
+                return await self._handle_compose_and_send_weather_email(message)
             elif action == "schedule_email":
                 return await self._handle_schedule_email(message)
             elif action == "create_template":
@@ -544,3 +573,71 @@ class EmailAgent(BaseAgent):
             "total_templates": len(self.templates)
         })
         return metrics
+    
+    async def _handle_compose_and_send_weather_email(self, message: Message) -> Message:
+        """Handle compose and send weather email request from Weather Agent."""
+        try:
+            self.logger.info("📧 Email Agent received weather data from Weather Agent")
+            
+            email_data = message.data.get("email_data", {})
+            
+            # Compose the email
+            email = Email(
+                email_id=f"weather_email_{len(self.emails) + 1}",
+                sender=email_data.get("sender", ""),
+                recipients=email_data.get("recipients", []),
+                subject=email_data.get("subject", "Weather Report"),
+                body=email_data.get("body", ""),
+                priority=EmailPriority(email_data.get("priority", "normal")),
+                cc=email_data.get("cc", []),
+                bcc=email_data.get("bcc", []),
+                attachments=email_data.get("attachments", []),
+                template_id=email_data.get("template_id"),
+                metadata=email_data.get("metadata", {})
+            )
+            
+            self.emails[email.email_id] = email
+            self.logger.info(f"📧 Composed weather email: {email.email_id} - {email.subject}")
+            
+            # Send the email immediately
+            success = await self._send_email(email)
+            if success:
+                email.status = EmailStatus.SENT
+                email.sent_at = datetime.now()
+                self.logger.info(f"✅ Weather email sent successfully: {email.email_id}")
+                
+                return Message(
+                    id=str(uuid.uuid4()),
+                    sender=self.agent_id,
+                    recipient=message.sender,
+                    type="email_response",
+                    data={
+                        "action": "weather_email_sent",
+                        "email_id": email.email_id,
+                        "email": self._email_to_dict(email)
+                    }
+                )
+            else:
+                return Message(
+                    id=str(uuid.uuid4()),
+                    sender=self.agent_id,
+                    recipient=message.sender,
+                    type="email_response",
+                    data={
+                        "action": "weather_email_failed",
+                        "error": "Failed to send weather email"
+                    }
+                )
+                
+        except Exception as e:
+            self.logger.error(f"Error handling weather email: {e}")
+            return Message(
+                id=str(uuid.uuid4()),
+                sender=self.agent_id,
+                recipient=message.sender,
+                type="email_response",
+                data={
+                    "action": "weather_email_failed",
+                    "error": str(e)
+                }
+            )

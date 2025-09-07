@@ -395,3 +395,7 @@ def init_settings(config_file: Optional[str] = None) -> Settings:
     global _settings
     _settings = Settings(config_file)
     return _settings
+
+
+
+

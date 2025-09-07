@@ -13,6 +13,7 @@ from enum import Enum
 
 from core.base_agent import BaseAgent
 from core.message_bus import Message
+from core.context_manager import ContextScope
 from config.agent_config import AgentType
 
 
@@ -100,7 +101,8 @@ class TranslationAgent(BaseAgent):
         if await super().start():
             self.logger.info("Translation agent started successfully")
             # Load API key from context
-            self.api_key = await self.context_manager.get("translation_api_key", scope="global")
+            if self.context_manager:
+                self.api_key = self.context_manager.get("translation_api_key", scope=ContextScope.GLOBAL)
             # Initialize default language models
             await self._initialize_default_models()
             return True
@@ -116,17 +118,17 @@ class TranslationAgent(BaseAgent):
     async def process_message(self, message: Message) -> Optional[Message]:
         """Process incoming messages for translation operations."""
         try:
-            if message.content.get("action") == "translate_text":
+            if message.data.get("action") == "translate_text":
                 return await self._handle_translate_text(message)
-            elif message.content.get("action") == "detect_language":
+            elif message.data.get("action") == "detect_language":
                 return await self._handle_detect_language(message)
-            elif message.content.get("action") == "batch_translate":
+            elif message.data.get("action") == "batch_translate":
                 return await self._handle_batch_translate(message)
-            elif message.content.get("action") == "add_language_model":
+            elif message.data.get("action") == "add_language_model":
                 return await self._handle_add_language_model(message)
-            elif message.content.get("action") == "get_supported_languages":
+            elif message.data.get("action") == "get_supported_languages":
                 return await self._handle_get_supported_languages(message)
-            elif message.content.get("action") == "get_translation_history":
+            elif message.data.get("action") == "get_translation_history":
                 return await self._handle_get_translation_history(message)
             else:
                 return await super().process_message(message)
@@ -141,11 +143,11 @@ class TranslationAgent(BaseAgent):
     
     async def _handle_translate_text(self, message: Message) -> Message:
         """Handle text translation request."""
-        source_text = message.content.get("source_text")
-        source_language = message.content.get("source_language")
-        target_language = message.content.get("target_language")
-        quality = message.content.get("quality", "standard")
-        context = message.content.get("context")
+        source_text = message.data.get("source_text")
+        source_language = message.data.get("source_language")
+        target_language = message.data.get("target_language")
+        quality = message.data.get("quality", "standard")
+        context = message.data.get("context")
         
         if not source_text:
             return Message(
@@ -198,7 +200,7 @@ class TranslationAgent(BaseAgent):
     
     async def _handle_detect_language(self, message: Message) -> Message:
         """Handle language detection request."""
-        text = message.content.get("text")
+        text = message.data.get("text")
         
         if not text:
             return Message(
@@ -229,9 +231,9 @@ class TranslationAgent(BaseAgent):
     
     async def _handle_batch_translate(self, message: Message) -> Message:
         """Handle batch translation request."""
-        texts = message.content.get("texts", [])
-        target_language = message.content.get("target_language")
-        quality = message.content.get("quality", "standard")
+        texts = message.data.get("texts", [])
+        target_language = message.data.get("target_language")
+        quality = message.data.get("quality", "standard")
         
         if not texts:
             return Message(
@@ -287,7 +289,7 @@ class TranslationAgent(BaseAgent):
     
     async def _handle_add_language_model(self, message: Message) -> Message:
         """Handle language model addition request."""
-        model_data = message.content.get("model_data", {})
+        model_data = message.data.get("model_data", {})
         
         model = LanguageModel(
             model_id=model_data.get("model_id", f"model_{len(self.language_models) + 1}"),
@@ -322,7 +324,7 @@ class TranslationAgent(BaseAgent):
     
     async def _handle_get_supported_languages(self, message: Message) -> Message:
         """Handle supported languages request."""
-        model_id = message.content.get("model_id")
+        model_id = message.data.get("model_id")
         
         if model_id and model_id in self.language_models:
             model = self.language_models[model_id]
@@ -343,7 +345,7 @@ class TranslationAgent(BaseAgent):
     
     async def _handle_get_translation_history(self, message: Message) -> Message:
         """Handle translation history request."""
-        limit = message.content.get("limit", 50)
+        limit = message.data.get("limit", 50)
         
         # Get recent translations
         recent_results = list(self.translation_results.values())
@@ -552,7 +554,7 @@ class TranslationAgent(BaseAgent):
     async def _process_message_impl(self, message: Message) -> Dict[str, Any]:
         """Implementation of message processing for translation agent."""
         try:
-            action = message.content.get("action")
+            action = message.data.get("action")
             
             if action == "translate_text":
                 return await self._handle_translate_text(message)

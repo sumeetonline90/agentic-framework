@@ -108,19 +108,19 @@ class CalendarAgent(BaseAgent):
     async def process_message(self, message: Message) -> Optional[Message]:
         """Process incoming messages for calendar management."""
         try:
-            if message.content.get("action") == "create_event":
+            if message.data.get("action") == "create_event":
                 return await self._handle_create_event(message)
-            elif message.content.get("action") == "update_event":
+            elif message.data.get("action") == "update_event":
                 return await self._handle_update_event(message)
-            elif message.content.get("action") == "delete_event":
+            elif message.data.get("action") == "delete_event":
                 return await self._handle_delete_event(message)
-            elif message.content.get("action") == "list_events":
+            elif message.data.get("action") == "list_events":
                 return await self._handle_list_events(message)
-            elif message.content.get("action") == "check_availability":
+            elif message.data.get("action") == "check_availability":
                 return await self._handle_check_availability(message)
-            elif message.content.get("action") == "create_calendar":
+            elif message.data.get("action") == "create_calendar":
                 return await self._handle_create_calendar(message)
-            elif message.content.get("action") == "schedule_meeting":
+            elif message.data.get("action") == "schedule_meeting":
                 return await self._handle_schedule_meeting(message)
             else:
                 return await super().process_message(message)
@@ -135,7 +135,7 @@ class CalendarAgent(BaseAgent):
     
     async def _handle_create_event(self, message: Message) -> Message:
         """Handle event creation request."""
-        event_data = message.content.get("event_data", {})
+        event_data = message.data.get("event_data", {})
         calendar_id = event_data.get("calendar_id", "default")
         
         if calendar_id not in self.calendars:
@@ -187,9 +187,9 @@ class CalendarAgent(BaseAgent):
     
     async def _handle_update_event(self, message: Message) -> Message:
         """Handle event update request."""
-        event_id = message.content.get("event_id")
-        calendar_id = message.content.get("calendar_id", "default")
-        updates = message.content.get("updates", {})
+        event_id = message.data.get("event_id")
+        calendar_id = message.data.get("calendar_id", "default")
+        updates = message.data.get("updates", {})
         
         if calendar_id not in self.calendars:
             return Message(
@@ -258,8 +258,8 @@ class CalendarAgent(BaseAgent):
     
     async def _handle_delete_event(self, message: Message) -> Message:
         """Handle event deletion request."""
-        event_id = message.content.get("event_id")
-        calendar_id = message.content.get("calendar_id", "default")
+        event_id = message.data.get("event_id")
+        calendar_id = message.data.get("calendar_id", "default")
         
         if calendar_id not in self.calendars:
             return Message(
@@ -296,8 +296,8 @@ class CalendarAgent(BaseAgent):
     
     async def _handle_list_events(self, message: Message) -> Message:
         """Handle event listing request."""
-        calendar_id = message.content.get("calendar_id", "default")
-        filters = message.content.get("filters", {})
+        calendar_id = message.data.get("calendar_id", "default")
+        filters = message.data.get("filters", {})
         
         if calendar_id not in self.calendars:
             return Message(
@@ -321,7 +321,7 @@ class CalendarAgent(BaseAgent):
     
     async def _handle_check_availability(self, message: Message) -> Message:
         """Handle availability checking request."""
-        calendar_id = message.content.get("calendar_id", "default")
+        calendar_id = message.data.get("calendar_id", "default")
         start_time = datetime.fromisoformat(message.content["start_time"])
         end_time = datetime.fromisoformat(message.content["end_time"])
         
@@ -357,7 +357,7 @@ class CalendarAgent(BaseAgent):
     
     async def _handle_create_calendar(self, message: Message) -> Message:
         """Handle calendar creation request."""
-        calendar_data = message.content.get("calendar_data", {})
+        calendar_data = message.data.get("calendar_data", {})
         
         calendar = Calendar(
             calendar_id=calendar_data.get("calendar_id", f"calendar_{len(self.calendars) + 1}"),
@@ -393,7 +393,7 @@ class CalendarAgent(BaseAgent):
     
     async def _handle_schedule_meeting(self, message: Message) -> Message:
         """Handle meeting scheduling request."""
-        meeting_data = message.content.get("meeting_data", {})
+        meeting_data = message.data.get("meeting_data", {})
         calendar_id = meeting_data.get("calendar_id", "default")
         
         if calendar_id not in self.calendars:
@@ -501,7 +501,7 @@ class CalendarAgent(BaseAgent):
     async def _process_message_impl(self, message: Message) -> Dict[str, Any]:
         """Implementation of message processing for calendar agent."""
         try:
-            action = message.content.get("action")
+            action = message.data.get("action")
             
             if action == "create_event":
                 return await self._handle_create_event(message)
@@ -532,7 +532,7 @@ class CalendarAgent(BaseAgent):
     
     async def _monitor_reminders(self):
         """Monitor and clean up completed reminders."""
-        while self.status.is_running():
+        while self.status == AgentStatus.RUNNING:
             try:
                 # Clean up completed reminders
                 completed_reminders = [
@@ -598,36 +598,6 @@ class CalendarAgent(BaseAgent):
             "reminder_minutes": event.reminder_minutes,
             "metadata": event.metadata
         }
-
-    async def _process_message_impl(self, message: Message) -> Dict[str, Any]:
-        """Implementation of message processing for calendar agent."""
-        try:
-            action = message.content.get("action")
-            
-            if action == "create_event":
-                return await self._handle_create_event(message)
-            elif action == "update_event":
-                return await self._handle_update_event(message)
-            elif action == "delete_event":
-                return await self._handle_delete_event(message)
-            elif action == "list_events":
-                return await self._handle_list_events(message)
-            elif action == "check_availability":
-                return await self._handle_check_availability(message)
-            elif action == "create_calendar":
-                return await self._handle_create_calendar(message)
-            else:
-                return {
-                    "success": False,
-                    "error": f"Unknown action: {action}"
-                }
-                
-        except Exception as e:
-            self.logger.error(f"Error in _process_message_impl: {e}")
-            return {
-                "success": False,
-                "error": str(e)
-            }
 
     def get_metrics(self) -> Dict[str, Any]:
         """Get calendar agent metrics."""

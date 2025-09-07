@@ -13,6 +13,7 @@ from enum import Enum
 
 from core.base_agent import BaseAgent
 from core.message_bus import Message
+from core.context_manager import ContextScope
 from config.agent_config import AgentType
 
 
@@ -87,7 +88,8 @@ class NewsAgent(BaseAgent):
         if await super().start():
             self.logger.info("News agent started successfully")
             # Load API key from context
-            self.api_key = await self.context_manager.get("news_api_key", scope="global")
+            if self.context_manager:
+                self.api_key = self.context_manager.get("news_api_key", scope=ContextScope.GLOBAL)
             # Initialize default feeds
             await self._initialize_default_feeds()
             # Start background task for news updates
@@ -105,17 +107,17 @@ class NewsAgent(BaseAgent):
     async def process_message(self, message: Message) -> Optional[Message]:
         """Process incoming messages for news operations."""
         try:
-            if message.content.get("action") == "get_latest_news":
+            if message.data.get("action") == "get_latest_news":
                 return await self._handle_get_latest_news(message)
-            elif message.content.get("action") == "search_news":
+            elif message.data.get("action") == "search_news":
                 return await self._handle_search_news(message)
-            elif message.content.get("action") == "get_news_by_category":
+            elif message.data.get("action") == "get_news_by_category":
                 return await self._handle_get_news_by_category(message)
-            elif message.content.get("action") == "add_feed":
+            elif message.data.get("action") == "add_feed":
                 return await self._handle_add_feed(message)
-            elif message.content.get("action") == "get_trending_topics":
+            elif message.data.get("action") == "get_trending_topics":
                 return await self._handle_get_trending_topics(message)
-            elif message.content.get("action") == "summarize_article":
+            elif message.data.get("action") == "summarize_article":
                 return await self._handle_summarize_article(message)
             else:
                 return await super().process_message(message)
@@ -130,9 +132,9 @@ class NewsAgent(BaseAgent):
     
     async def _handle_get_latest_news(self, message: Message) -> Message:
         """Handle latest news request."""
-        limit = message.content.get("limit", 10)
-        category = message.content.get("category")
-        source = message.content.get("source")
+        limit = message.data.get("limit", 10)
+        category = message.data.get("category")
+        source = message.data.get("source")
         
         try:
             articles = await self._get_latest_articles(limit, category, source)
@@ -156,10 +158,10 @@ class NewsAgent(BaseAgent):
     
     async def _handle_search_news(self, message: Message) -> Message:
         """Handle news search request."""
-        query = message.content.get("query")
-        limit = message.content.get("limit", 10)
-        date_from = message.content.get("date_from")
-        date_to = message.content.get("date_to")
+        query = message.data.get("query")
+        limit = message.data.get("limit", 10)
+        date_from = message.data.get("date_from")
+        date_to = message.data.get("date_to")
         
         if not query:
             return Message(
@@ -191,8 +193,8 @@ class NewsAgent(BaseAgent):
     
     async def _handle_get_news_by_category(self, message: Message) -> Message:
         """Handle news by category request."""
-        category = message.content.get("category")
-        limit = message.content.get("limit", 10)
+        category = message.data.get("category")
+        limit = message.data.get("limit", 10)
         
         if not category:
             return Message(
@@ -224,7 +226,7 @@ class NewsAgent(BaseAgent):
     
     async def _handle_add_feed(self, message: Message) -> Message:
         """Handle feed addition request."""
-        feed_data = message.content.get("feed_data", {})
+        feed_data = message.data.get("feed_data", {})
         
         feed = NewsFeed(
             feed_id=feed_data.get("feed_id", f"feed_{len(self.feeds) + 1}"),
@@ -260,7 +262,7 @@ class NewsAgent(BaseAgent):
     
     async def _handle_get_trending_topics(self, message: Message) -> Message:
         """Handle trending topics request."""
-        limit = message.content.get("limit", 10)
+        limit = message.data.get("limit", 10)
         
         try:
             topics = await self._get_trending_topics(limit)
@@ -284,7 +286,7 @@ class NewsAgent(BaseAgent):
     
     async def _handle_summarize_article(self, message: Message) -> Message:
         """Handle article summarization request."""
-        article_id = message.content.get("article_id")
+        article_id = message.data.get("article_id")
         
         if article_id not in self.articles:
             return Message(
@@ -348,7 +350,7 @@ class NewsAgent(BaseAgent):
     
     async def _update_news_periodically(self):
         """Periodically update news from feeds."""
-        while self.status.is_running():
+        while self.status == AgentStatus.RUNNING:
             try:
                 await self._fetch_latest_news()
                 await asyncio.sleep(3600)  # Update every hour
@@ -484,6 +486,56 @@ class NewsAgent(BaseAgent):
         
         return summary
     
+    async def _handle_categorize_news(self, message: Message) -> Message:
+        """Handle news categorization request."""
+        article_id = message.data.get("article_id")
+        
+        if article_id not in self.articles:
+            return Message(
+                sender=self.agent_id,
+                recipient=message.sender,
+                content={"error": f"Article {article_id} not found"}
+            )
+        
+        try:
+            article = self.articles[article_id]
+            # Simple categorization based on keywords
+            category = self._categorize_article(article)
+            
+            return Message(
+                sender=self.agent_id,
+                recipient=message.sender,
+                content={
+                    "action": "article_categorized",
+                    "article_id": article_id,
+                    "category": category
+                }
+            )
+        except Exception as e:
+            return Message(
+                sender=self.agent_id,
+                recipient=message.sender,
+                content={"error": f"Error categorizing article: {str(e)}"}
+            )
+    
+    def _categorize_article(self, article: NewsArticle) -> str:
+        """Categorize an article based on content."""
+        content_lower = (article.title + " " + article.content).lower()
+        
+        # Simple keyword-based categorization
+        if any(word in content_lower for word in ["tech", "software", "ai", "computer", "digital"]):
+            return "technology"
+        elif any(word in content_lower for word in ["business", "economy", "finance", "market", "stock"]):
+            return "business"
+        elif any(word in content_lower for word in ["sport", "game", "team", "player", "match"]):
+            return "sports"
+        elif any(word in content_lower for word in ["movie", "music", "entertainment", "celebrity"]):
+            return "entertainment"
+        elif any(word in content_lower for word in ["health", "medical", "doctor", "hospital"]):
+            return "health"
+        else:
+            return "general"
+    
     def _article_to_dict(self, article: NewsArticle) -> Dict[str, Any]:
         """Convert article to dictionary for serialization."""
         return {
@@ -505,7 +557,7 @@ class NewsAgent(BaseAgent):
     async def _process_message_impl(self, message: Message) -> Dict[str, Any]:
         """Implementation of message processing for news agent."""
         try:
-            action = message.content.get("action")
+            action = message.data.get("action")
             
             if action == "get_latest_news":
                 return await self._handle_get_latest_news(message)
@@ -517,6 +569,8 @@ class NewsAgent(BaseAgent):
                 return await self._handle_add_feed(message)
             elif action == "get_trending_topics":
                 return await self._handle_get_trending_topics(message)
+            elif action == "categorize_news":
+                return await self._handle_categorize_news(message)
             else:
                 return {
                     "success": False,
