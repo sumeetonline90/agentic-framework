@@ -21,6 +21,15 @@ agentic-framework/
 │   ├── news_agent.py      # News aggregation agent
 │   ├── translation_agent.py # Translation agent
 │   └── weather_agent.py   # Weather information agent
+├── api/                  # API layer (FastAPI)
+│   ├── __init__.py
+│   ├── app.py            # FastAPI app with /health
+│   └── routes.py         # API routes (placeholder)
+├── services/             # External service integrations
+│   ├── __init__.py
+│   └── email_service.py  # Email service abstraction (placeholder)
+├── web/                  # Web interface (placeholder)
+│   └── README.md
 ├── config/               # Configuration management
 │   ├── __init__.py
 │   ├── settings.py       # Framework settings
