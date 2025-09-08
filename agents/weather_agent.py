@@ -466,9 +466,14 @@ class WeatherAgent(BaseAgent):
             email_content = self._format_weather_email_content(weather_data, forecast_data)
             
             # Create email data
+            # Handle both single recipient and multiple recipients
+            recipients = request_data.get("email_recipients") or [request_data.get("email_recipient")]
+            if isinstance(recipients, str):
+                recipients = [recipients]
+            
             email_data = {
                 "sender": request_data.get("email_sender"),
-                "recipients": [request_data.get("email_recipient")],
+                "recipients": recipients,
                 "subject": f"🌤️ Weather Report for {weather_data['location']} - {datetime.now().strftime('%Y-%m-%d')}",
                 "body": email_content,
                 "priority": "normal"

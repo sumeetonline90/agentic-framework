@@ -29,9 +29,9 @@ class TrueAgenticDemo:
     def __init__(self):
         self.logger = logging.getLogger("true_agentic_demo")
         
-        # Demo configuration
+        # Demo configuration - will be set interactively
         self.target_city = "Mumbai"
-        self.target_email = "sumeetonline90@gmail.com"
+        self.target_email = None
         
         # Load email configuration
         import os
@@ -119,6 +119,32 @@ class TrueAgenticDemo:
             self.logger.error(f"❌ Failed to add {self.target_city} location")
             return False
     
+    def get_user_input(self):
+        """Get user input for demo configuration."""
+        print("\n🌤️ Weather-Email Agent Demo")
+        print("=" * 50)
+        
+        # Get city
+        city = input(f"Enter city name (default: {self.target_city}): ").strip()
+        if city:
+            self.target_city = city
+        
+        # Get recipient emails
+        email_input = input("Enter recipient email addresses (comma-separated): ").strip()
+        if email_input:
+            # Split by comma and clean up whitespace
+            emails = [email.strip() for email in email_input.split(',') if email.strip()]
+            self.target_email = emails
+        else:
+            print("❌ Email address(es) are required!")
+            return False
+            
+        print(f"\n📧 Configuration:")
+        print(f"   City: {self.target_city}")
+        print(f"   Recipient: {self.target_email}")
+        print(f"   Sender: {self.smtp_config['username']}")
+        return True
+    
     async def trigger_weather_to_email_flow(self):
         """Trigger the weather-to-email flow by requesting weather data."""
         self.logger.info("🌤️ Triggering weather-to-email flow...")
@@ -133,9 +159,9 @@ class TrueAgenticDemo:
             type="weather_request",
             data={
                 "action": "get_current_weather", 
-                "location_id": "mumbai",
+                "location_id": self.target_city.lower(),
                 "send_to_email": True,  # Tell weather agent to send to email
-                "email_recipient": self.target_email,
+                "email_recipients": self.target_email,
                 "email_sender": self.smtp_config["username"]
             }
         )
@@ -173,6 +199,10 @@ class TrueAgenticDemo:
             self.logger.info("🤖 Starting TRUE Agentic Framework Demo")
             self.logger.info("=" * 60)
             self.logger.info("This demo shows agents communicating directly with each other")
+            
+            # Get user input
+            if not self.get_user_input():
+                return False
             
             # Setup
             await self.setup_logging()
@@ -220,7 +250,7 @@ async def main():
     """Main function to run the true agentic demo."""
     print("🤖 TRUE Agentic Framework Demo")
     print("This demo shows TRUE agent-to-agent communication:")
-    print("1. Weather Agent gets Mumbai weather data")
+    print("1. Weather Agent gets weather data for your chosen city")
     print("2. Weather Agent sends data DIRECTLY to Email Agent")
     print("3. Email Agent receives data and sends email automatically")
     print("4. No manual orchestration - agents work independently")
