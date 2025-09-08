@@ -10,80 +10,86 @@ agentic-framework/
 │   ├── base_agent.py       # Base agent class
 │   ├── agent_manager.py    # Agent orchestration and management
 │   ├── message_bus.py      # Inter-agent communication
-│   ├── context_manager.py  # Shared context and state management
-│   └── utils.py           # Common utilities
+│   └── context_manager.py  # Shared context and state management
 ├── agents/                 # Individual agent implementations
 │   ├── __init__.py
 │   ├── email_agent.py     # Email handling agent
 │   ├── calendar_agent.py  # Calendar management agent
 │   ├── chat_agent.py      # Conversational agent
 │   ├── task_agent.py      # Task automation agent
-│   └── data_agent.py      # Data analysis agent
-├── services/              # External service integrations
-│   ├── __init__.py
-│   ├── openai_service.py  # OpenAI integration
-│   ├── email_service.py   # Email service
-│   ├── calendar_service.py # Calendar service
-│   └── database_service.py # Database service
+│   ├── data_agent.py      # Data analysis agent
+│   ├── news_agent.py      # News aggregation agent
+│   ├── translation_agent.py # Translation agent
+│   └── weather_agent.py   # Weather information agent
 ├── config/               # Configuration management
 │   ├── __init__.py
 │   ├── settings.py       # Framework settings
 │   └── agent_config.py   # Agent-specific configurations
-├── api/                  # API layer
-│   ├── __init__.py
-│   ├── routes.py         # API routes
-│   └── middleware.py     # API middleware
-├── web/                  # Web interface
-│   ├── templates/        # HTML templates
-│   ├── static/          # CSS, JS, images
-│   └── components/      # Reusable UI components
-├── tests/               # Test suite
 ├── examples/            # Example implementations
-├── docs/               # Documentation
+│   └── basic_example.py # Basic usage example
+├── data/                # Data storage directory
+├── logs/                # Log files directory
+├── true_agentic_demo.py # Main demo showcasing agent-to-agent communication
 ├── main.py             # Application entry point
+├── quick_start.py      # Quick start script
+├── quick_test.py       # Quick test script
+├── fix_agents.py       # Agent maintenance script
 ├── requirements.txt    # Dependencies
-└── docker-compose.yml  # Docker configuration
+├── docker-compose.yml  # Docker configuration
+├── Dockerfile          # Docker image definition
+├── .env.example        # Environment variables template
+├── .gitignore          # Git ignore rules
+└── README.md           # This file
 ```
 
 ## 🚀 Features
 
 - **Modular Design**: Easy to add new agents without modifying existing code
-- **Inter-Agent Communication**: Agents can communicate and collaborate
+- **Inter-Agent Communication**: Agents can communicate and collaborate via message bus
 - **Shared Context**: Common state and data sharing between agents
-- **Plugin System**: Extensible with custom plugins and integrations
-- **API-First**: RESTful API for external integrations
-- **Web Interface**: Modern web UI for agent management
-- **Configuration Management**: Flexible configuration system
+- **Multiple Agent Types**: Email, Weather, Calendar, Chat, Task, Data, News, and Translation agents
+- **True Agentic Behavior**: Agents work independently and communicate directly
+- **Configuration Management**: Flexible configuration system with environment variables
 - **Logging & Monitoring**: Comprehensive logging and monitoring
-- **Testing Framework**: Built-in testing utilities
+- **Docker Support**: Containerized deployment with Docker and Docker Compose
+- **Interactive Demo**: Working demo showcasing agent-to-agent communication
 
 ## 🛠️ Quick Start
 
 ### 1. Installation
 
 ```bash
-git clone <repository>
+git clone https://github.com/sumeetonline90/agentic-framework.git
 cd agentic-framework
 pip install -r requirements.txt
 ```
 
 ### 2. Configuration
 
-Copy the example configuration and update with your settings:
+Copy the example environment file and update with your settings:
 
 ```bash
-cp config/settings.example.py config/settings.py
+cp .env.example .env
+# Edit .env with your email credentials
 ```
 
-### 3. Run the Framework
+### 3. Run the Demo
 
 ```bash
-python main.py
+python true_agentic_demo.py
 ```
 
-### 4. Access the Web Interface
+This will start an interactive demo where you can:
+- Choose a city for weather data
+- Enter multiple email recipients
+- Watch agents communicate directly with each other
+- Send weather reports via email automatically
 
-Open your browser to `http://localhost:8000`
+### 4. Alternative: Quick Test
+
+```bash
+python quick_test.py
+```
 
 ## 📝 Creating a New Agent
 
